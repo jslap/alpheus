@@ -1,5 +1,10 @@
 #coding: utf-8
 
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import object
 from cgi import escape
 import datetime
 from functools import wraps
@@ -23,7 +28,7 @@ def _build_tag(name, attrs):
     return u'<%s%s>' % (
         name,
         u''.join((
-            u" %s=%s" % (k, quoteattr(unicode(v)))
+            u" %s=%s" % (k, quoteattr(str(v)))
             for k,v in sorted(attrs.items())
         ))
     )
@@ -67,9 +72,9 @@ def _only_open(target):
             return target(self, el, openclose, *args, **kwargs)
     return inner
 
-_r_housemet = re.compile(ur'^\s*(?P<text>The\s+House\s+met\s+at|La\s+séance\s+est\s+ouverte\s+à)\s+(?P<number>\d[\d:\.]*)\s*(?P<ampm>[ap]\.m\.|)', re.I | re.UNICODE)
-_r_person_label = re.compile(ur'^(Mr\.?\s|Mrs\.?\s|Ms\.?\s|Miss\.?s\|Hon\.?\s|Right\sHon\.\s|The\sSpeaker|Le\sprésident|The\sChair|The\sDeputy|The\sActing|An\s[hH]on\.?\s|Une\svoix|Des\svoix|Some\s[hH]on\.\s|M\.\s|Acting\s|L.hon\.?\s|Le\strès\s|Assistant\s|Mme\.?\s|Mlle\.?\s|Dr\.?\s)', re.UNICODE)
-_r_honorific = re.compile(ur'^(Mr\.?\s|Mrs\.?\s|Ms\.?\s|Miss\.?\s|Hon\.?\s|Right\sHon\.\s|M\.\s|L.hon\.?\s|Mme\.?\s|Mlle\.?\s|Dr\.?\s)', re.UNICODE)
+_r_housemet = re.compile(r'^\s*(?P<text>The\s+House\s+met\s+at|La\s+séance\s+est\s+ouverte\s+à)\s+(?P<number>\d[\d:\.]*)\s*(?P<ampm>[ap]\.m\.|)', re.I | re.UNICODE)
+_r_person_label = re.compile(r'^(Mr\.?\s|Mrs\.?\s|Ms\.?\s|Miss\.?s\|Hon\.?\s|Right\sHon\.\s|The\sSpeaker|Le\sprésident|The\sChair|The\sDeputy|The\sActing|An\s[hH]on\.?\s|Une\svoix|Des\svoix|Some\s[hH]on\.\s|M\.\s|Acting\s|L.hon\.?\s|Le\strès\s|Assistant\s|Mme\.?\s|Mlle\.?\s|Dr\.?\s)', re.UNICODE)
+_r_honorific = re.compile(r'^(Mr\.?\s|Mrs\.?\s|Ms\.?\s|Miss\.?\s|Hon\.?\s|Right\sHon\.\s|M\.\s|L.hon\.?\s|Mme\.?\s|Mlle\.?\s|Dr\.?\s)', re.UNICODE)
 _r_parens = re.compile(r'\s*\(.+\)\s*')
 _r_indeterminate = re.compile(r'^(An?|Une)\s')
 def _get_housemet_time(number, ampm):
@@ -132,13 +137,13 @@ class Document(object):
                 title = u'House Debates'
             else:
                 title = u'Débats du Chambre'
-        title += u', ' + unicode(self.meta['date'])
+        title += u', ' + str(self.meta['date'])
         
         metadata_rows = []
         for k, v in sorted(self.meta.items()):
             metadata_rows.append(u"%s<th>%s</th><td>%s</td></tr>" % (
                 _build_tag('tr', {'class': 'metadata', 'data-name': k, 'data-value': v}),
-                escape(k), escape(unicode(v))))
+                escape(k), escape(str(v))))
         
         html = self.BASE_HTML % {
             'title': title,
@@ -168,11 +173,11 @@ class Statement(object):
     def as_html(self):
         def setval(in_key, out_key):
             if self.meta.get(in_key):
-                attrs[out_key] = unicode(self.meta[in_key])
+                attrs[out_key] = str(self.meta[in_key])
                 
         attrs = {
             'class': 'statement',
-            'data-timestamp': unicode(self.meta['timestamp']), #.strftime("%H:%M"),
+            'data-timestamp': str(self.meta['timestamp']), #.strftime("%H:%M"),
         }
         setval('id', 'id')
         setval('person_attribution', 'data-person-speaking-attribution')
@@ -220,7 +225,7 @@ class ParseHandler(object):
                     'Pause', 'StartPause', 'EndPause', 'Date', 'Insertion',
                     'colspec', 'tgroup', 'tbody', 'thead', 'title',
                     'EditorsNotes',
-                    etree.ProcessingInstruction] + PASSTHROUGH_TAGS.keys()
+                    etree.ProcessingInstruction] + list(PASSTHROUGH_TAGS.keys())
 
         
     def __init__(self, document):
@@ -642,7 +647,7 @@ def parse_tree(tree):
     
     # Start by getting metadata
     def _get_meta(key):
-        return unicode(tree.xpath('//ExtractedItem[@Name="%s"]' % key)[0].text)
+        return str(tree.xpath('//ExtractedItem[@Name="%s"]' % key)[0].text)
     document.meta['date'] = datetime.date(
         year=int(_get_meta('MetaDateNumYear')),
         month=int(_get_meta('MetaDateNumMonth')),
@@ -693,14 +698,14 @@ def parse_string(s):
     return parse_tree(etree.fromstring(s))
     
 def fetch_and_parse(doc_id, lang):
-    import urllib2
+    import urllib.request, urllib.error, urllib.parse
     if doc_id == 'hansard':
         url = 'http://parl.gc.ca/HousePublications/Publication.aspx?Pub=%s&Language=%s&Mode=1&xml=true' % (
             doc_id, lang[0].upper())
     else:
         url = 'http://www.parl.gc.ca/HousePublications/Publication.aspx?DocId=%s&Language=%s&Mode=1&xml=true' % (
             doc_id, lang[0].upper())
-    resp = urllib2.urlopen(url)
+    resp = urllib.request.urlopen(url)
     doc = parse_file(resp)
     try:
         doc.meta['HoCid'] = int(doc_id)
@@ -744,10 +749,10 @@ def main():
     #sys.stderr.write("Parsed %d statements\n" % len(document.statements))
     if options.print_names:
         for s in document.statements:
-            print s.meta.get('person_attribution', '').encode('utf8')
+            print(s.meta.get('person_attribution', '').encode('utf8'))
     else:
         html = document.as_html()
-        print html.encode('utf8')
+        print(html.encode('utf8'))
     
 if __name__ == '__main__':
     main()
